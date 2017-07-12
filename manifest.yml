@@ -15,6 +15,10 @@ default_versions:
   version: 1.0.18
 - name: libffi
   version: 3.2.1
+url_to_dependency_map:
+- match: ENT_CA_Root_Cert_Base64.cer
+  name: dgentcert
+  version: 1.0
 dependency_deprecation_dates:
 - match: 2.7.\d+
   version_line: "2.7"
@@ -42,6 +46,12 @@ dependency_deprecation_dates:
   date: 2021-12-23
   link: https://docs.python.org/devguide/index.html#branchstatus
 dependencies:
+- name: dgentcert
+  version: 1.0
+  uri: https://artpro.digitalglobe.com/artifactory/dg-tools/p20-20-pipeline/ENT_CA_Root_Cert_Base64.cer
+  md5: 919f5751d995f9d33492fd02726cf2e9
+  cf_stacks:
+  - cflinuxfs2
 - name: pip
   version: 9.0.1
   cf_stacks:

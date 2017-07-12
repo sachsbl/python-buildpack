@@ -3,14 +3,37 @@ set -euo pipefail
 
 BUILD_DIR=$1
 CACHE_DIR=$2
-BUILDPACK_PATH=$(dirname $(readlink -f ${BASH_SOURCE%/*}))
-DEPS_DIR="$BUILD_DIR/.cloudfoundry"
-
-mkdir -p $CACHE_DIR
+export BUILDPACK_DIR=`dirname $(readlink -f ${BASH_SOURCE%/*})`
+export DEPS_DIR="$BUILD_DIR/.cloudfoundry"
 mkdir -p "$DEPS_DIR/0"
 mkdir -p "$BUILD_DIR/.profile.d"
-
 echo "export DEPS_DIR=\$HOME/.cloudfoundry" > "$BUILD_DIR/.profile.d/0000_set-deps-dir.sh"
 
-$BUILDPACK_PATH/bin/supply "$BUILD_DIR" "$CACHE_DIR" "$DEPS_DIR" 0
-$BUILDPACK_PATH/bin/finalize "$BUILD_DIR" "$CACHE_DIR" "$DEPS_DIR" 0
+#
+# Hack needed to get DG ENT cert usable by Warden containers
+# Pull ENT cert from artifactory and have SSL_CERT_DIR point to it and regular spot
+#
+echo "Doing the DG ENT cert buildpack hack!"
+mkdir -vp ${CACHE_DIR}
+urlNotActuallyFollowed=https://artpro.digitalglobe.com/artifactory/dg-tools/p20-20-pipeline/ENT_CA_Root_Cert_Base64.cer
+dgentcert=$("${BUILDPACK_DIR}/compile-extensions/bin/download_dependency" ${urlNotActuallyFollowed} ${CACHE_DIR})
+rc=$?
+[[ $rc -ne 0 ]] && errcho "ERROR: download_dependency failed, output: '${dgentcert}'" && exit 2;
+echo "download_dependency succeeded, ENT cert available at: ${dgentcert}"
+mkdir -p ${BUILD_DIR}/ssl
+curl -s ${dgentcert} > ${BUILD_DIR}/ssl/ENT_CA_Root_Cert_Base64.pem
+c_rehash ${BUILD_DIR}/ssl
+echo "export SSL_CERT_DIR=/app/ssl:/etc/ssl/certs" >> "${BUILD_DIR}/.profile.d/ssl.sh"
+
+
+# The above appeases openssl but apparently Python Requests library doesn't trust OpenSSL
+# So we're setting this (maybe it works?)
+echo "export REQUESTS_CA_BUNDLE=/app/ssl" >> "${BUILD_DIR}/.profile.d/ssl.sh"
+
+#
+# End hack.  Let's stop using Warden containers soon
+# (test if this is needed with Diego)
+#
+
+$BUILDPACK_DIR/bin/supply "$BUILD_DIR" "$CACHE_DIR" "$DEPS_DIR" 0
+$BUILDPACK_DIR/bin/finalize "$BUILD_DIR" "$CACHE_DIR" "$DEPS_DIR" 0
